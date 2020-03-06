@@ -8,7 +8,7 @@ import ReactDOM from 'react-dom'
 
 import Scene from './scene'
 
-const scene = new Scene(document.getElementById("root"))
+const scene = new Scene(document.querySelector("#root") as HTMLElement)
 
 window.addEventListener('resize', () => {
     scene.resize()

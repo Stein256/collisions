@@ -4,7 +4,6 @@ import * as THREE from 'three'
 
 import Collisions from './collisions'
 import { Mesh, Vec2, Geometry, BoxGeometry, Vector3, Object3D, SphereGeometry, Material } from 'three'
-import { MyLine } from './threeUtils'
 const trace = console.log
 
 let red = new THREE.MeshBasicMaterial({
@@ -32,7 +31,7 @@ export default class Scene {
 
         this.camera = new THREE.PerspectiveCamera(70, elem.offsetWidth / elem.offsetHeight, 0.1, 1000)
         this.camera.position.set(0, 20, 0)
-        let orbitControls = new OrbitControls(this.camera, this.renderer.domElement)
+        let orbitControls = new OrbitControls(this.camera, elem)
         orbitControls.addEventListener('change', () => this.render())
 
         let gridHelper = new THREE.GridHelper(20, 20, 0xffffff, 0xcccccc)
@@ -62,7 +61,7 @@ export default class Scene {
         })
 
         let currentY = 0
-        this.dragControls = new DragControls(boxes, this.camera, this.renderer.domElement)
+        this.dragControls = new DragControls(boxes, this.camera, elem)
         this.dragControls.addEventListener('dragstart', (e: DragEvent) => {
             orbitControls.enabled = false
             currentY = e.object.position.y
@@ -85,30 +84,12 @@ export default class Scene {
             this.render()
         })
 
-        const maxCalls = 1000
         this.dragControls.addEventListener('dragend', (e: DragEvent) => {
             orbitControls.enabled = true
             const box = e.object
-            let objects, calls = 0
-
-            do {
-                ++calls
-                // this.collisions.addFromVertices(box.uuid, meshToPoints(box))
-                // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
-                this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
-                let res = this.collisions.getProjection(box.uuid)
-                box.position.x -= res.x
-                box.position.z -= res.y
-                objects = res.objects
-                box.updateMatrix()
-            } while (objects.length && calls < maxCalls)
-            trace('calls', calls)
-            if (calls < maxCalls) {
-                box.material = green
-            }
-            // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
-            this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
-            // this.collisions.addFromVertices(box.uuid, meshToPoints(box))
+            console.time('moveBox')
+            this.moveBox(box)
+            console.timeEnd('moveBox')
             this.render()
         })
         this.render()
@@ -123,6 +104,39 @@ export default class Scene {
         this.renderer.setSize(this.elem.offsetWidth, window.innerHeight)
         this.camera.updateProjectionMatrix()
         this.render()
+    }
+
+    moveBox(box: Mesh) {
+        const maxCalls = 1000
+        let objects, calls = 0
+        // this.collisions.addFromVertices(box.uuid, meshToPoints(box))
+        // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
+        this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
+
+        let pos = box.position.clone()
+        let objectsOuter // can't believe i have to do this
+        do {
+            ++calls
+            const { x, y, objects } = this.collisions.getProjection(box.uuid)
+            this.collisions.translate(box.uuid, { x: pos.x, y: pos.z })
+            pos.x -= x
+            pos.z -= y
+            objectsOuter = objects
+        } while (objectsOuter.length && calls < maxCalls)
+
+        trace('calls', calls)
+        if (calls < maxCalls) {
+            box.material = green
+        } else {
+            box.material = red
+        }
+
+        box.position.copy(pos)
+        box.updateMatrix()
+
+        // this.collisions.addFromVertices(box.uuid, meshToPoints(box))
+        // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
+        this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
     }
 }
 

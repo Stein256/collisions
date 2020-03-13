@@ -4,7 +4,7 @@ const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 const root = path.resolve(__dirname, '.');
-const dest = path.resolve(__dirname, '.build');
+const dest = path.resolve(__dirname, '.docs');
 
 const config = {
     context: root,

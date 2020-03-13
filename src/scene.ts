@@ -4,6 +4,7 @@ import * as THREE from 'three'
 
 import Collisions from './collisions'
 import { Mesh, Vec2, Geometry, BoxGeometry, Vector3, Object3D, SphereGeometry, Material } from 'three'
+import {Store} from './index'
 const trace = console.log
 
 let red = new THREE.MeshBasicMaterial({
@@ -20,8 +21,14 @@ export default class Scene {
     elem: HTMLElement
     dragControls: DragControls
     collisions: Collisions
-    constructor(elem: HTMLElement) {
+    orbitControls: OrbitControls
+    boxes: ReturnType<typeof makeBox>[]
+    selectedBox: Mesh & { geometry: Geometry }
+    store: Store
+    
+    constructor(elem: HTMLElement, store: Store) {
         this.elem = elem
+        this.store = store
         this.renderer = new THREE.WebGLRenderer()
         this.renderer.setSize(elem.offsetWidth, elem.offsetHeight)
         elem.appendChild(this.renderer.domElement)
@@ -31,67 +38,16 @@ export default class Scene {
 
         this.camera = new THREE.PerspectiveCamera(70, elem.offsetWidth / elem.offsetHeight, 0.1, 1000)
         this.camera.position.set(0, 20, 0)
-        let orbitControls = new OrbitControls(this.camera, elem)
-        orbitControls.addEventListener('change', () => this.render())
+        this.orbitControls = new OrbitControls(this.camera, elem)
+        this.orbitControls.addEventListener('change', () => this.render())
 
         let gridHelper = new THREE.GridHelper(20, 20, 0xffffff, 0xcccccc)
         this.scene.add(gridHelper)
 
         this.collisions = new Collisions()
+        this.boxes = []
+        this.selectedBox
 
-        let box1 = makeBox(new Vector3(-2, 0, 0))
-        let box2 = makeBox(new Vector3(0, 0, -1))
-        let box3 = makeBox(new Vector3(2, 0, 0))
-
-        // box1.rotation.y = Math.PI * 2 * Math.random()
-        // box2.rotation.y = Math.PI * 2 * Math.random()
-        // box3.rotation.y = Math.PI * 2 * Math.random()
-
-        box1.rotation.y = Math.PI / 5
-        box2.rotation.y = 0
-        box3.rotation.y = -Math.PI / 5
-
-        const boxes = [box1, box2, box3]
-
-        boxes.forEach(box => {
-            this.scene.add(box)
-            box.updateMatrix()
-            // this.collisions.addFromVertices(box.uuid, meshToPoints(box), { x: box.position.x, y: box.position.z })
-            this.collisions.addRect(box.uuid, {x: box.position.x, y: box.position.z}, 2, 4, -box.rotation.y)
-        })
-
-        let currentY = 0
-        this.dragControls = new DragControls(boxes, this.camera, elem)
-        this.dragControls.addEventListener('dragstart', (e: DragEvent) => {
-            orbitControls.enabled = false
-            currentY = e.object.position.y
-        })
-
-        this.dragControls.addEventListener('drag', (e: DragEvent) => {
-            const box = e.object
-            box.position.y = currentY
-            // this.collisions.addFromVertices(e.object.uuid, meshToPoints(e.object))
-            // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
-            this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
-            let { x, y, collided } = this.collisions.getProjection(box.uuid)
-            box.position.x -= x
-            box.position.z -= y
-            if (collided) {
-                box.material = red
-            } else {
-                box.material = green
-            }
-            this.render()
-        })
-
-        this.dragControls.addEventListener('dragend', (e: DragEvent) => {
-            orbitControls.enabled = true
-            const box = e.object
-            console.time('moveBox')
-            this.moveBox(box)
-            console.timeEnd('moveBox')
-            this.render()
-        })
         this.render()
     }
 
@@ -106,9 +62,70 @@ export default class Scene {
         this.render()
     }
 
+    resetDragControls() {
+        this.dragControls && this.dragControls.dispose()
+        let currentY = 0
+        this.dragControls = new DragControls(this.boxes, this.camera, this.elem)
+        this.dragControls.addEventListener('dragstart', (e: DragEvent) => {
+            this.selectedBox = e.object
+            this.orbitControls.enabled = false
+            currentY = e.object.position.y
+        })
+
+        this.dragControls.addEventListener('drag', (e: DragEvent) => {
+            const box = e.object as Mesh & { geometry: BoxGeometry } 
+            box.position.y = currentY
+            // this.collisions.addFromVertices(e.object.uuid, meshToPoints(e.object))
+            // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
+            this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
+            let { x, y, collided } = this.collisions.getProjection(box.uuid)
+            box.position.x -= x
+            box.position.z -= y
+            if (collided) {
+                box.material = red
+            } else {
+                box.material = green
+            }
+            this.store.dispatch({
+                type: 'MOVE_BOX',
+                box,
+            })
+            this.render()
+        })
+
+        this.dragControls.addEventListener('dragend', (e: DragEvent) => {
+            this.orbitControls.enabled = true
+            const box = e.object as Mesh & { geometry: BoxGeometry } 
+            console.time('moveBox')
+            this.moveBox(box)
+            console.timeEnd('moveBox')
+            this.store.dispatch({
+                type: 'MOVE_BOX',
+                box,
+            })
+            this.render()
+        })
+    }
+
+    addBox(pos: Vec2, width: number, height: number, rotation: number) {
+        const box = makeBox(new Vector3(pos.x, 0, pos.y), width, height)
+        box.rotation.y = rotation
+        this.boxes.push(box)
+        this.scene.add(box)
+        box.updateMatrix()
+        this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, width, height, -box.rotation.y)
+        this.resetDragControls()
+        this.render()
+        this.store.dispatch({
+            type: 'ADD_BOX',
+            box,
+        })
+        return box
+    }
+
     moveBox(box: Mesh) {
         const maxCalls = 1000
-        let objects, calls = 0
+        let calls = 0
         // this.collisions.addFromVertices(box.uuid, meshToPoints(box))
         // this.collisions.addRect(box.uuid, { x: box.position.x, y: box.position.z }, 2, 4, -box.rotation.y)
         this.collisions.translate(box.uuid, { x: box.position.x, y: box.position.z })
@@ -150,9 +167,9 @@ function meshToPoints(mesh: Mesh & {geometry: Geometry}) {
         } as Vec2))
 }
 
-function makeBox(position: Vector3) {
+function makeBox(position: Vector3, width = 2, height = 4) {
     const box = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 0.000001, 4),
+        new THREE.BoxGeometry(width, 0.000001, height),
         green,
     ) as Mesh & {geometry: BoxGeometry}
     box.position.copy(position)

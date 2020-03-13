@@ -25,9 +25,9 @@ const useSummaryStyles = makeStyles(theme => ({
         backgroundColor: 'rgba(0, 0, 0, .03)',
         borderBottom: '1px solid rgba(0, 0, 0, .125)',
         marginBottom: -1,
-        minHeight: 56,
+        minHeight: 40,
         '&$expanded': {
-            minHeight: 56,
+            minHeight: 40,
         },
     },
     content: {
@@ -44,23 +44,7 @@ const useDetailsStyles = makeStyles(theme => ({
     },
 }))
 
-const useStyles = makeStyles(theme => ({
-    expanded: {
-        '&$expanded': {
-            minHeight: 'inherit',
-        },
-    },
-    content: {
-        '&$content': {
-            margin: 0,
-        }
-    },
-    root: {
-        padding: 5,
-    },
-}))
-
-const Menu = () => {
+const Menu = (props: MenuProps) => {
     const panelClasses = usePanelStyles()
     const summaryClasses = useSummaryStyles()
     const detailsClasses = useDetailsStyles()
@@ -72,19 +56,20 @@ const Menu = () => {
                 expandIcon={<ExpandMoreIcon />}
             >
                 <Typography>
-                    Main Menu
+                    {props.title}
                 </Typography>
             </ExpansionPanelSummary>
 
             <ExpansionPanelDetails classes={detailsClasses}>
-                <Typography>
-                    Some text
-                    <br/>
-                    More text
-                </Typography>
+                {props.children}
             </ExpansionPanelDetails>
         </ExpansionPanel>
     )
+}
+
+interface MenuProps {
+    children: any,
+    title: any,
 }
 
 export default Menu

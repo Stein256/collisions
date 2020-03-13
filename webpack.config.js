@@ -11,7 +11,7 @@ const config = {
     entry: './src/index.tsx',
     output: {
         path: dest,
-        filename: 'js/.bundle.js',
+        filename: 'js/bundle.js',
         hotUpdateChunkFilename: 'hot-update/hot-update.js',
         hotUpdateMainFilename: 'hot-update/hot-update.json',
     },
